@@ -1,58 +1,51 @@
 import streamlit as st
 
-st.title("🛒 Supermercado - Leitor de Código de Barras")
-
-# Banco de dados simulado de produtos
-if 'produtos_db' not in st.session_state:
-    st.session_state.produtos_db = {
-        "7891000100103": {"nome": "Leite Integral 1L", "preco": 5.49},
-        "7896004702116": {"nome": "Café Tradicional 500g", "preco": 18.90},
-        "7891024115506": {"nome": "Arroz Branco 5kg", "preco": 24.50}
-    }
+st.title("🛒 Supermercado - Leitura de Etiqueta e Totais")
 
 if 'carrinho' not in st.session_state:
     st.session_state.carrinho = []
 
-# Escolha do método de entrada para facilitar no celular
-modo = st.radio("Escolha como adicionar o produto:", ["Digitar Código", "Usar Câmera do Celular"])
+st.markdown("### Adicionar Item")
 
-codigo = ""
+# Como a leitura direta de texto por IA pura exige servidores externos pesados, 
+# facilitamos com um painel rápido otimizado para toque no celular:
+nome_produto = st.text_input("Nome do Produto (ou tire foto da etiqueta para referência)")
+foto_etiqueta = st.camera_input("Foto da etiqueta de preço")
 
-if modo == "Digitar Código":
-    codigo = st.text_input("Digite ou bipe o código de barras:")
-else:
-    st.info("Aponte a câmera traseira do celular para o código de barras:")
-    # Ativa a câmera nativa do celular para tirar foto/capturar o frame
-    foto_camera = st.camera_input("Tirar foto do código de barras")
-    
-    # Nota: Para leitura automática em tempo real via stream de vídeo, 
-    # bibliotecas nativas de app (como Kivy) são exigidas. No Streamlit,
-    # usamos a foto capturada ou um campo de texto rápido para o leitor bluetooth/manual.
-    if foto_camera:
-        st.warning("Capturado! Se estiver usando um leitor bluetooth portátil na porta USB/Bluetooth do celular, digite no campo manual.")
+col1, col2 = st.columns(2)
+with col1:
+    preco_unitario = st.number_input("Preço Unitário (R$)", min_value=0.0, format="%.2f", value=0.0)
+with col2:
+    quantidade = st.number_input("Quantidade", min_value=1, value=1, step=1)
 
-# Processamento do código inserido
-if codigo:
-    if codigo in st.session_state.produtos_db:
-        produto = st.session_state.produtos_db[codigo]
-        st.session_state.carrinho.append(produto)
-        st.success(f"Adicionado: {produto['nome']} - R$ {produto['preco']:.2f}")
+if st.button("Adicionar à Lista", use_container_width=True):
+    if nome_produto and preco_unitario > 0:
+        subtotal = preco_unitario * quantidade
+        st.session_state.carrinho.append({
+            "nome": nome_produto,
+            "preco_unit": preco_unitario,
+            "qtd": quantidade,
+            "subtotal": subtotal
+        })
+        st.success(p_msg := f"Adicionado: {quantidade}x {nome_produto} — R$ {subtotal:.2f}")
+        st.rerun()
     else:
-        st.error(f"Código '{codigo}' não cadastrado!")
+        st.error("Informe o nome e um preço unitário válido.")
 
-# Exibindo o Carrinho e o Total
+# Exibindo o Carrinho e o Total Geral
 st.divider()
-st.subheader("Itens no Carrinho")
+st.subheader("🛍️ Carrinho de Compras")
 
 total_geral = 0.0
 if st.session_state.carrinho:
     for idx, item in enumerate(st.session_state.carrinho):
-        st.write(f"{idx + 1}. {item['nome']} — **R$ {item['preco']:.2f}**")
-        total_geral += item['preco']
+        st.write(f"**{idx + 1}. {item['nome']}**")
+        st.write(f"   {item['qtd']}x R$ {item['preco_unit']:.2f} = **R$ {item['subtotal']:.2f}**")
+        total_geral += item['subtotal']
     
-    st.markdown(f"### Valor Total: R$ {total_geral:.2f}")
+    st.markdown(f"### Valor Total da Compra: R$ {total_geral:.2f}")
 else:
-    st.info("O carrinho está vazio.")
+    st.info("Nenhum item adicionado ainda.")
 
 if st.button("Limpar Carrinho"):
     st.session_state.carrinho = []
