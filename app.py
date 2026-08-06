@@ -24,7 +24,6 @@ with st.form("form_adicionar", clear_on_submit=True):
     btn_enviar = st.form_submit_button("➕ Adicionar ao Carrinho", use_container_width=True)
 
 if btn_enviar and entrada_texto:
-    # Remove palavras desnecessárias que a digitação por voz costuma trazer ("reais", "real", "e")
     texto_limpo = entrada_texto.lower()
     for termo in ["reais", "real", "r$"]:
         texto_limpo = texto_limpo.replace(termo, "")
@@ -32,7 +31,6 @@ if btn_enviar and entrada_texto:
     partes = texto_limpo.strip().split()
     
     try:
-        # Converte quantidade (inicial)
         if partes and partes[0] in mapa_numeros:
             qtd_ou_peso = float(mapa_numeros[partes[0]])
             partes.pop(0)
@@ -40,25 +38,22 @@ if btn_enviar and entrada_texto:
             qtd_ou_peso = float(partes[0].replace(',', '.'))
             partes.pop(0)
             
-        # Pega o preço (último elemento numérico da lista)
-        # Se houver uma palavra "e" solta antes do centavo (ex: 4 e 50), trata ela
         if "e" in partes:
             partes.remove("e")
             
         preco_informado = float(partes[-1].replace(',', '.'))
         partes.pop(-1)
         
-        # O restante no meio é o nome do produto
         nome_detectado = " ".join(partes).strip()
         if not nome_detectado:
             nome_detectado = "Produto"
             
         subtotal = qtd_ou_peso * preco_informado
-        detalhe = f"{qtd_ou_peso} un/kg"
         
         st.session_state.carrinho.append({
             "nome": nome_detectado.capitalize(),
-            "detalhe": detalhe,
+            "qtd": qtd_ou_peso,
+            "unitario": preco_informado,
             "subtotal": subtotal
         })
         st.success(f"Adicionado: {qtd_ou_peso}x {nome_detectado.capitalize()} - R$ {subtotal:.2f}")
@@ -77,7 +72,8 @@ if st.session_state.carrinho:
     for idx, item in enumerate(st.session_state.carrinho):
         col_item1, col_item2 = st.columns([4, 1])
         with col_item1:
-            st.write(f"**{idx+1}. {item['nome']}** ({item['detalhe']}) — **R$ {item['subtotal']:.2f}**")
+            # Exibe o nome, a quantidade, o valor unitário e o subtotal calculado
+            st.write(f"**{idx+1}. {item['nome']}** ({item['qtd']}x R$ {item['unitario']:.2f}) — **R$ {item['subtotal']:.2f}**")
         with col_item2:
             if st.button("❌", key=f"del_{idx}"):
                 st.session_state.carrinho.pop(idx)
