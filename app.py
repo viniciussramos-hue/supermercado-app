@@ -1,21 +1,45 @@
 import streamlit as st
 import urllib.parse
 import pandas as pd
+import json
+import os
 
 st.set_page_config(page_title="🛒 Supermercado Rápido", layout="centered")
 
-# --- ESTADO DA APLICAÇÃO ---
-if 'carrinho' not in st.session_state:
-    st.session_state.carrinho = []
+# --- ARQUIVO PARA SALVAR OS DADOS NA MEMÓRIA DO COMPUTADOR ---
+ARQUIVO_DADOS = "dados_mercado.json"
 
-if 'historico_frequentes' not in st.session_state:
-    st.session_state.historico_frequentes = {
+def carregar_dados():
+    if os.path.exists(ARQUIVO_DADOS):
+        try:
+            with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            pass
+    return {"carrinho": [], "historico_frequentes": {
         "Leite Integral": 4.50,
         "Café 500g": 12.00,
         "Arroz 5kg": 22.90,
         "Feijão 1kg": 8.50,
         "Óleo de Soja": 7.00
+    }}
+
+def salvar_dados():
+    dados = {
+        "carrinho": st.session_state.carrinho,
+        "historico_frequentes": st.session_state.historico_frequentes
     }
+    with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=4)
+
+# --- ESTADO DA APLICAÇÃO ---
+dados_salvos = carregar_dados()
+
+if 'carrinho' not in st.session_state:
+    st.session_state.carrinho = dados_salvos["carrinho"]
+
+if 'historico_frequentes' not in st.session_state:
+    st.session_state.historico_frequentes = dados_salvos["historico_frequentes"]
 
 # Título do Aplicativo
 st.title("🛒 Supermercado Rápido")
@@ -59,13 +83,11 @@ if btn_enviar and entrada_texto:
     partes = texto_limpo.strip().split()
     
     try:
-        # Extrai todos os números presentes na frase limpa
         numeros_encontrados = []
         palavras_nome = []
         
         for p in partes:
             p_limpo = p.replace(',', '.')
-            # Verifica se a parte é um número ou palavra de número
             if p_limpo.replace('.', '', 1).isdigit() or p in mapa_numeros:
                 val = float(mapa_numeros[p]) if p in mapa_numeros else float(p_limpo)
                 numeros_encontrados.append(val)
@@ -77,14 +99,10 @@ if btn_enviar and entrada_texto:
         if not nome_detectado:
             nome_detectado = "Produto"
             
-        # Lógica inteligente para identificar Preço e Quantidade dependendo de quantos números foram ditados
         if len(numeros_encontrados) >= 2:
-            # Se tem dois números (ex: "batata 2 kg 4.50" ou "2 leite 4.50")
-            # Assume que o menor ou o primeiro é a quantidade e o último é o preço unitário
             qtd_ou_peso = numeros_encontrados[0]
             preco_informado = numeros_encontrados[-1]
         elif len(numeros_encontrados) == 1:
-            # Se digitou apenas o preço (ex: "batata 4.50 o kilo"), assume quantidade 1 por padrão
             qtd_ou_peso = 1.0
             preco_informado = numeros_encontrados[0]
         else:
@@ -101,6 +119,9 @@ if btn_enviar and entrada_texto:
             "categoria": categoria
         })
         st.session_state.historico_frequentes[nome_detectado] = preco_informado
+        
+        # Salva automaticamente no arquivo local
+        salvar_dados()
         
         st.success(f"Adicionado: {qtd_ou_peso}x {nome_detectado} - R$ {subtotal:.2f}")
         st.rerun()
@@ -125,6 +146,7 @@ with st.expander("⚡ Adicionar Rápidos (Histórico Frequente)"):
                     "subtotal": subtotal_freq,
                     "categoria": cat_freq
                 })
+                salvar_dados()
                 st.rerun()
         idx_col += 1
 
@@ -156,6 +178,7 @@ if st.session_state.carrinho:
         with col_item2:
             if st.button("❌", key=f"del_{idx}"):
                 st.session_state.carrinho.pop(idx)
+                salvar_dados()
                 st.rerun()
                 
     st.markdown(f"--- \n### 💰 Total Geral: R$ {total_geral:.2f}")
@@ -195,6 +218,7 @@ if st.session_state.carrinho:
     st.write("") 
     if st.button("🗑️ Limpar Carrinho Inteiro", use_container_width=True):
         st.session_state.carrinho = []
+        salvar_dados()
         st.rerun()
 else:
-    st.info("Seu carrinho está vazio.")
+     st.info("Seu carrinho está vazio.")
