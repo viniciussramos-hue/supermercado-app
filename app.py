@@ -1,5 +1,4 @@
 import streamlit as st
-import re
 
 st.set_page_config(page_title="🛒 Supermercado Rápido", layout="centered")
 
@@ -11,52 +10,57 @@ if 'carrinho' not in st.session_state:
 st.title("🛒 Supermercado Rápido")
 
 st.subheader("Adicionar por Digitação ou Voz")
-st.write("Digite ou fale (usando o microfone do teclado) no formato: **[Quantidade] [Nome do Produto] [Preço]**")
-st.write("*Exemplo:* `3 leite 4.50` ou `2 carne 35.90` ou `1 cafe 12.90`")
+st.write("Digite ou fale (usando o microfone do teclado). Exemplos:")
+st.write("• `3 leite 4.50` ou `dois arroz 22.90` ou `1 cafe 12.90`")
+
+# Dicionário simples para converter números escritos em dígitos
+mapa_numeros = {
+    "um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "três": 3,
+    "quatro": 4, "cinco": 5, "seis": 6, "sete": 7, "oito": 8, "nove": 9, "dez": 10
+}
 
 # Campo único de entrada rápida
-entrada_texto = st.text_input("O que vai levar?", placeholder="Ex: 2 arroz 22.90")
+entrada_texto = st.text_input("O que vai levar?", placeholder="Ex: 2 arroz 22.90 ou dois leite 4.50")
 
 if entrada_texto:
-    # Tentativa de extração inteligente da frase
-    # Procura números no texto para identificar quantidade e preço
-    partes = entrada_texto.strip().split()
+    partes = entrada_texto.strip().lower().split()
     
-    # Validação simples para tentar extrair quantidade e preço
     try:
-        # Assume que o primeiro número é a quantidade e o último é o preço
-        # Ex: "3 leite 4.50" -> qtd = 3, preco = 4.50, nome = "leite"
-        numeros = [p.replace(',', '.') for p in partes if p.replace(',', '').replace('.', '').isdigit()]
-        
-        if len(numeros) >= 2:
-            qtd_ou_peso = float(numeros[0])
-            preco_informado = float(numeros[-1])
-            
-            # O nome do produto é tudo o que está entre o primeiro e o último número
-            inicio_nome = partes.index(numeros[0]) + 1
-            fim_nome = len(partes) - 1 if partes[-1] == numeros[-1] else len(partes)
-            nome_detectado = " ".join(partes[inicio_nome:fim_nome]).strip()
-            if not nome_detectado:
-                nome_detectado = "Produto"
-            
-            subtotal = qtd_ou_peso * preco_informado
-            detalhe = f"{qtd_ou_peso} un/kg"
-            
-            # Botão de confirmação rápida com os dados interpretados
-            st.info(êm := f"**Detectado:** {qtd_ou_peso}x {nome_detectado.capitalize()} a R$ {preco_informado:.2f} cada (Subtotal: R$ {subtotal:.2f})")
-            
-            if st.button("➕ Confirmar e Adicionar ao Carrinho", use_container_width=True):
-                st.session_state.carrinho.append({
-                    "nome": nome_detectado.capitalize(),
-                    "detalhe": detalhe,
-                    "subtotal": subtotal
-                })
-                st.success("Adicionado com sucesso!")
-                st.rerun()
+        # Se a primeira palavra for um número escrito por extenso (ex: "dois"), converte para número
+        if partes and partes[0] in mapa_numeros:
+            qtd_ou_peso = float(mapa_numeros[partes[0]])
+            # Remove a palavra do número da lista de partes para sobrar o nome e o preço
+            partes.pop(0)
         else:
-            st.warning("⚠️ Não consegui identificar a quantidade ou o preço. Use o formato: `[Quantidade] [Nome] [Preço]` (Ex: `2 leite 4.50`)")
+            # Tenta pegar o primeiro elemento como número normal
+            qtd_ou_peso = float(partes[0].replace(',', '.'))
+            partes.pop(0)
+            
+        # O último elemento da lista restante deve ser o preço unitário
+        preco_informado = float(partes[-1].replace(',', '.'))
+        partes.pop(-1) # Remove o preço
+        
+        # O que sobrou no meio é o nome do produto
+        nome_detectado = " ".join(partes).strip()
+        if not nome_detectado:
+            nome_detectado = "Produto"
+            
+        subtotal = qtd_ou_peso * preco_informado
+        detalhe = f"{qtd_ou_peso} un/kg"
+        
+        st.info(f"**Detectado:** {qtd_ou_peso}x {nome_detectado.capitalize()} a R$ {preco_informado:.2f} cada (Subtotal: R$ {subtotal:.2f})")
+        
+        if st.button("➕ Confirmar e Adicionar ao Carrinho", use_container_width=True):
+            st.session_state.carrinho.append({
+                "nome": nome_detectado.capitalize(),
+                "detalhe": detalhe,
+                "subtotal": subtotal
+            })
+            st.success("Adicionado com sucesso!")
+            st.rerun()
+            
     except Exception:
-        st.warning("⚠️ Formato não reconhecido. Certifique-se de incluir a quantidade e o preço em números.")
+        st.warning("⚠️ Formato não reconhecido. Use o formato: `[Quantidade] [Nome] [Preço]` (Ex: `2 leite 4.50` ou `dois leite 4.50`)")
 
 st.divider()
 
