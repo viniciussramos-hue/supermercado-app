@@ -27,7 +27,8 @@ with st.sidebar:
 
 st.subheader("Adicionar por Digitação ou Voz")
 st.write("Digite ou fale (usando o microfone do teclado). Exemplos:")
-st.write("• `3 leite 4.50` (com qtd) ou `cafe 12.00` (assume 1 unidade)")
+st.write("• `batata 4.50 o kilo` (assume 1 kg)")
+st.write("• `carne 2 kg 35.90` ou `2 leite 4.50`")
 
 mapa_numeros = {
     "um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "três": 3,
@@ -47,38 +48,47 @@ def categorizar_produto(nome):
 
 # Formulário de entrada rápida
 with st.form("form_adicionar", clear_on_submit=True):
-    entrada_texto = st.text_input("O que vai levar?", placeholder="Ex: arroz 22.90 ou 2 leite 4.50")
+    entrada_texto = st.text_input("O que vai levar?", placeholder="Ex: batata 4.50 o kilo ou carne 2 kg 35.90")
     btn_enviar = st.form_submit_button("➕ Adicionar ao Carrinho", use_container_width=True)
 
 if btn_enviar and entrada_texto:
-    partes = entrada_texto.lower().replace("reais", "").replace("real", "").replace("r$", "").strip().split()
+    texto_limpo = entrada_texto.lower()
+    for termo in ["reais", "real", "r$", "o kilo", "o quilo", "quilo", "kilo", "kg", "litro", "l", "unidade", "un"]:
+        texto_limpo = texto_limpo.replace(termo, "")
+        
+    partes = texto_limpo.strip().split()
     
     try:
-        if partes and (partes[0] in mapa_numeros or partes[0].replace(',', '.').replace('.', '').isdigit()):
-            if partes[0] in mapa_numeros:
-                qtd_ou_peso = float(mapa_numeros[partes[0]])
+        # Extrai todos os números presentes na frase limpa
+        numeros_encontrados = []
+        palavras_nome = []
+        
+        for p in partes:
+            p_limpo = p.replace(',', '.')
+            # Verifica se a parte é um número ou palavra de número
+            if p_limpo.replace('.', '', 1).isdigit() or p in mapa_numeros:
+                val = float(mapa_numeros[p]) if p in mapa_numeros else float(p_limpo)
+                numeros_encontrados.append(val)
             else:
-                qtd_ou_peso = float(partes[0].replace(',', '.'))
-            partes.pop(0)
-            
-            if "e" in partes:
-                partes.remove("e")
+                palavras_nome.append(p)
                 
-            preco_informado = float(partes[-1].replace(',', '.'))
-            partes.pop(-1)
-            nome_bruto = " ".join(partes).strip()
-        else:
-            qtd_ou_peso = 1.0
-            if "e" in partes:
-                partes.remove("e")
-                
-            preco_informado = float(partes[-1].replace(',', '.'))
-            partes.pop(-1)
-            nome_bruto = " ".join(partes).strip()
-            
-        nome_detectado = " ".join([p.capitalize() for p in nome_bruto.split()])
+        nome_bruto = " ".join(palavras_nome).strip()
+        nome_detectado = " ".join([w.capitalize() for w in nome_bruto.split()])
         if not nome_detectado:
             nome_detectado = "Produto"
+            
+        # Lógica inteligente para identificar Preço e Quantidade dependendo de quantos números foram ditados
+        if len(numeros_encontrados) >= 2:
+            # Se tem dois números (ex: "batata 2 kg 4.50" ou "2 leite 4.50")
+            # Assume que o menor ou o primeiro é a quantidade e o último é o preço unitário
+            qtd_ou_peso = numeros_encontrados[0]
+            preco_informado = numeros_encontrados[-1]
+        elif len(numeros_encontrados) == 1:
+            # Se digitou apenas o preço (ex: "batata 4.50 o kilo"), assume quantidade 1 por padrão
+            qtd_ou_peso = 1.0
+            preco_informado = numeros_encontrados[0]
+        else:
+            raise Exception("Nenhum valor numérico encontrado")
             
         subtotal = qtd_ou_peso * preco_informado
         categoria = categorizar_produto(nome_detectado)
@@ -96,7 +106,7 @@ if btn_enviar and entrada_texto:
         st.rerun()
             
     except Exception:
-        st.warning("⚠️ Formato não reconhecido. Use o formato: `[Quantidade (opcional)] [Nome] [Preço]` (Ex: `cafe 12.00` ou `2 leite 4.50`)")
+        st.warning("⚠️ Formato não reconhecido. Use o formato: `[Nome] [Preço]` (Ex: `batata 4.50`) ou `[Qtd] [Nome] [Preço]` (Ex: `2 leite 4.50`)")
 
 # --- LISTA RECORRENTE / ITENS FREQUENTES ---
 with st.expander("⚡ Adicionar Rápidos (Histórico Frequente)"):
@@ -135,7 +145,7 @@ if st.session_state.carrinho:
             st.error(f"⚠️ Atenção! Você passou do orçamento máximo de R$ {orcamento_max:.2f}!")
         else:
             falta = orcamento_max - total_geral
-            st.info(f"💡 Orçamento: R$ {total_geral:.2f} gastos de R$ {orcamento_maxpr := orcamento_max - total_geral} (Restam R$ {falta:.2f})")
+            st.info(f"💡 Orçamento: R$ {total_geral:.2f} gastos de R$ {orcamento_max:.2f} (Restam R$ {falta:.2f})")
 
     st.markdown("---")
 
@@ -152,7 +162,6 @@ if st.session_state.carrinho:
     
     # --- BOTÃO DE EXPORTAR PARA EXCEL (CSV) ---
     df_export = pd.DataFrame(st.session_state.carrinho)
-    # Renomeia as colunas para o arquivo ficar limpo e em português
     df_export = df_export.rename(columns={
         "categoria": "Categoria",
         "nome": "Produto",
