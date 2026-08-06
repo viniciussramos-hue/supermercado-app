@@ -78,15 +78,12 @@ with st.form("form_adicionar", clear_on_submit=True):
     btn_enviar = st.form_submit_button("➕ Adicionar ao Carrinho", use_container_width=True)
 
 if btn_enviar and entrada_texto:
-    texto_original = entrada_texto
     texto_limpo = entrada_texto.lower()
     
-    # Remove apenas termos isolados para não cortar letras de nomes como "Leite"
     termos_remover = ["reais", "real", "r$", "o kilo", "o quilo", "quilo", "kilo", "kg", "unidade", "un"]
     for termo in termos_remover:
         texto_limpo = texto_limpo.replace(termo, "")
         
-    # Tratamento seguro para Litro (apenas se estiver isolado por espaços ou números)
     palavras_texto = texto_limpo.split()
     palavras_filtradas = []
     for p in palavras_texto:
@@ -108,10 +105,8 @@ if btn_enviar and entrada_texto:
             else:
                 palavras_nome.append(p)
                 
-        # Resgata o nome original capitalizado caso queira, ou usa as palavras limpas
         nome_bruto = " ".join(palavras_nome).strip()
         if not nome_bruto:
-            # Se por acaso o nome ficou vazio, tenta extrair do texto original
             nome_detectado = "Produto"
         else:
             nome_detectado = " ".join([w.capitalize() for w in nome_bruto.split()])
@@ -202,7 +197,7 @@ if st.session_state.carrinho:
 
     # --- BOTÃO DE EXPORTAR PARA O WHATSAPP ---
     texto_whatsapp = "🛒 *Minha Lista de Supermercado*\n\n"
-    for item in st.session_save.carrinho if 'carrinho' in st.session_state else st.session_state.carrinho:
+    for item in st.session_state.carrinho:
         texto_whatsapp += f"• {item['nome']} ({item['qtd']}x R$ {item['unitario']:.2f}) - R$ {item['subtotal']:.2f}\n"
     texto_whatsapp += f"\n*Total Geral: R$ {total_geral:.2f}*"
     
