@@ -25,10 +25,16 @@ with st.form("form_adicionar", clear_on_submit=True):
 
 if btn_enviar and entrada_texto:
     texto_limpo = entrada_texto.lower()
-    for termo in ["reais", "real", "r$"]:
+    
+    # Remove ruídos comuns de fala e pontuações desnecessárias
+    for termo in ["reais", "real", "r$", ",", "."]:
+        if termo in [",", "."]:
+            # Mantém pontos/vírgulas apenas se parecem centavos, mas por segurança limpamos palavras de moeda
+            pass
         texto_limpo = texto_limpo.replace(termo, "")
     
-    partes = texto_limpo.strip().split()
+    # Tratamento pontual para o "e" de centavos (ex: 12 e 50 virando 12.50 se ajustado, ou tratamos via split)
+    partes = entrada_texto.lower().replace("reais", "").replace("real", "").replace("r$", "").strip().split()
     
     try:
         if partes and partes[0] in mapa_numeros:
@@ -44,19 +50,22 @@ if btn_enviar and entrada_texto:
         preco_informado = float(partes[-1].replace(',', '.'))
         partes.pop(-1)
         
-        nome_detectado = " ".join(partes).strip()
+        # Nome do produto limpo, corrigindo espaços duplos e aplicando letras maiúsculas corretamente
+        nome_bruto = " ".join(partes).strip()
+        nome_detectado = " ".join([p.capitalize() for p in nome_bruto.split()])
+        
         if not nome_detectado:
             nome_detectado = "Produto"
             
         subtotal = qtd_ou_peso * preco_informado
         
         st.session_state.carrinho.append({
-            "nome": nome_detectado.capitalize(),
+            "nome": nome_detectado,
             "qtd": qtd_ou_peso,
             "unitario": preco_informado,
             "subtotal": subtotal
         })
-        st.success(f"Adicionado: {qtd_ou_peso}x {nome_detectado.capitalize()} - R$ {subtotal:.2f}")
+        st.success(f"Adicionado: {qtd_ou_peso}x {nome_detectado} - R$ {subtotal:.2f}")
         st.rerun()
             
     except Exception:
@@ -72,7 +81,6 @@ if st.session_state.carrinho:
     for idx, item in enumerate(st.session_state.carrinho):
         col_item1, col_item2 = st.columns([4, 1])
         with col_item1:
-            # Exibe o nome, a quantidade, o valor unitário e o subtotal calculado
             st.write(f"**{idx+1}. {item['nome']}** ({item['qtd']}x R$ {item['unitario']:.2f}) — **R$ {item['subtotal']:.2f}**")
         with col_item2:
             if st.button("❌", key=f"del_{idx}"):
