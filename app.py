@@ -1,10 +1,21 @@
 import streamlit as st
+import urllib.parse
 
 st.set_page_config(page_title="🛒 Supermercado Rápido", layout="centered")
 
 # --- ESTADO DA APLICAÇÃO ---
 if 'carrinho' not in st.session_state:
     st.session_state.carrinho = []
+
+if 'historico_frequentes' not in st.session_state:
+    # Memória de itens frequentes salvos automaticamente
+    st.session_state.historico_frequentes = {
+        "Leite Integral": 4.50,
+        "Café 500g": 12.00,
+        "Arroz 5kg": 22.90,
+        "Feijão 1kg": 8.50,
+        "Óleo de Soja": 7.00
+    }
 
 # Título do Aplicativo
 st.title("🛒 Supermercado Rápido")
@@ -23,7 +34,6 @@ mapa_numeros = {
     "quatro": 4, "cinco": 5, "seis": 6, "sete": 7, "oito": 8, "nove": 9, "dez": 10
 }
 
-# Função de categorização corrigida
 def categorizar_produto(nome):
     nome_lower = nome.lower()
     if any(k in nome_lower for k in ["tomate", "cebola", "batata", "fruta", "banana", "maca", "alho", "cenoura", "alface"]):
@@ -35,7 +45,7 @@ def categorizar_produto(nome):
     else:
         return "📦 Mercearia / Outros"
 
-# Formulário com limpeza automática ao enviar
+# Formulário de entrada rápida
 with st.form("form_adicionar", clear_on_submit=True):
     entrada_texto = st.text_input("O que vai levar?", placeholder="Ex: arroz 22.90 ou 2 leite 4.50")
     btn_enviar = st.form_submit_button("➕ Adicionar ao Carrinho", use_container_width=True)
@@ -73,6 +83,7 @@ if btn_enviar and entrada_texto:
         subtotal = qtd_ou_peso * preco_informado
         categoria = categorizar_produto(nome_detectado)
         
+        # Adiciona ao carrinho e atualiza o histórico frequente
         st.session_state.carrinho.append({
             "nome": nome_detectado,
             "qtd": qtd_ou_peso,
@@ -80,11 +91,33 @@ if btn_enviar and entrada_texto:
             "subtotal": subtotal,
             "categoria": categoria
         })
+        st.session_state.historico_frequentes[nome_detectado] = preco_informado
+        
         st.success(f"Adicionado: {qtd_ou_peso}x {nome_detectado} - R$ {subtotal:.2f}")
         st.rerun()
             
     except Exception:
         st.warning("⚠️ Formato não reconhecido. Use o formato: `[Quantidade (opcional)] [Nome] [Preço]` (Ex: `cafe 12.00` ou `2 leite 4.50`)")
+
+# --- LISTA RECORRENTE / ITENS FREQUENTES ---
+with st.expander("⚡ Adicionar Rápidos (Histórico Frequente)"):
+    st.write("Clique em um item abaixo para adicioná-lo rapidamente (quantidade 1x):")
+    cols_freq = st.columns(2)
+    idx_col = 0
+    for prod_freq, preco_freq in list(st.session_state.historico_frequentes.items())[:8]:
+        with cols_freq[idx_col % 2]:
+            if st.button(f"➕ {prod_freq} (R$ {preco_freq:.2f})", use_container_width=True):
+                subtotal_freq = preco_freq
+                cat_freq = categorizar_produto(prod_freq)
+                st.session_state.carrinho.append({
+                    "nome": prod_freq,
+                    "qtd": 1.0,
+                    "unitario": preco_freq,
+                    "subtotal": subtotal_freq,
+                    "categoria": cat_freq
+                })
+                st.rerun()
+        idx_col += 1
 
 st.divider()
 
@@ -118,6 +151,20 @@ if st.session_state.carrinho:
                 
     st.markdown(f"--- \n### 💰 Total Geral: R$ {total_geral:.2f}")
     
+    # --- BOTÃO DE EXPORTAR PARA O WHATSAPP ---
+    texto_whatsapp = "🛒 *Minha Lista de Supermercado*\n\n"
+    for item in st.session_state.carrinho:
+        texto_whatsapp += f"• {item['nome']} ({item['qtd']}x R$ {item['unitario']:.2f}) - R$ {item['subtotal']:.2f}\n"
+    texto_whatsapp += f"\n*Total Geral: R$ {total_geral:.2f}*"
+    
+    link_whatsapp = f"https://api.whatsapp.com/send?text={urllib.parse.quote(texto_whatsapp)}"
+    
+    st.markdown(
+        f'<a href="{link_whatsapp}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; font-size:16px; cursor:pointer;">📤 Enviar Lista para o WhatsApp</button></a>',
+        unsafe_allow_html=True
+    )
+    
+    st.write("") # Espaçamento
     if st.button("🗑️ Limpar Carrinho Inteiro", use_container_width=True):
         st.session_state.carrinho = []
         st.rerun()
