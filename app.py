@@ -6,7 +6,7 @@ import os
 
 st.set_page_config(page_title="🛒 Supermercado Rápido", layout="centered")
 
-# --- ARQUIVO PARA SALVAR OS DADOS NA MEMÓRIA DO COMPUTADOR ---
+# --- ARQUIVO PARA SALVAR OS DADOS NA MEMÓRIA ---
 ARQUIVO_DADOS = "dados_mercado.json"
 
 def carregar_dados():
@@ -16,18 +16,15 @@ def carregar_dados():
                 return json.load(f)
         except:
             pass
-    return {"carrinho": [], "historico_frequentes": {
-        "Leite Integral": 4.50,
-        "Café 500g": 12.00,
-        "Arroz 5kg": 22.90,
-        "Feijão 1kg": 8.50,
-        "Óleo de Soja": 7.00
-    }}
+    return {
+        "orcamento_max": 150.0,
+        "carrinho": []
+    }
 
 def salvar_dados():
     dados = {
-        "carrinho": st.session_state.carrinho,
-        "historico_frequentes": st.session_state.historico_frequentes
+        "orcamento_max": st.session_state.get("orcamento_max", 150.0),
+        "carrinho": st.session_state.carrinho
     }
     with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=4)
@@ -38,16 +35,20 @@ dados_salvos = carregar_dados()
 if 'carrinho' not in st.session_state:
     st.session_state.carrinho = dados_salvos["carrinho"]
 
-if 'historico_frequentes' not in st.session_state:
-    st.session_state.historico_frequentes = dados_salvos["historico_frequentes"]
-
 # Título do Aplicativo
 st.title("🛒 Supermercado Rápido")
 
 # --- ORÇAMENTO PRÉVIO ---
 with st.sidebar:
     st.header("⚙️ Configurações")
-    orcamento_max = st.number_input("Orçamento Máximo (R$):", min_value=0.0, format="%.2f", value=150.0)
+    orcamento_max = st.number_input(
+        "Orçamento Máximo (R$):", 
+        min_value=0.0, 
+        format="%.2f", 
+        value=float(dados_salvos.get("orcamento_max", 150.0)),
+        key="orcamento_max",
+        on_change=salvar_dados
+    )
 
 st.subheader("Adicionar por Digitação ou Voz")
 st.write("Digite ou fale (usando o microfone do teclado). Exemplos:")
@@ -118,9 +119,7 @@ if btn_enviar and entrada_texto:
             "subtotal": subtotal,
             "categoria": categoria
         })
-        st.session_state.historico_frequentes[nome_detectado] = preco_informado
         
-        # Salva automaticamente no arquivo local
         salvar_dados()
         
         st.success(f"Adicionado: {qtd_ou_peso}x {nome_detectado} - R$ {subtotal:.2f}")
@@ -128,27 +127,6 @@ if btn_enviar and entrada_texto:
             
     except Exception:
         st.warning("⚠️ Formato não reconhecido. Use o formato: `[Nome] [Preço]` (Ex: `batata 4.50`) ou `[Qtd] [Nome] [Preço]` (Ex: `2 leite 4.50`)")
-
-# --- LISTA RECORRENTE / ITENS FREQUENTES ---
-with st.expander("⚡ Adicionar Rápidos (Histórico Frequente)"):
-    st.write("Clique em um item abaixo para adicioná-lo rapidamente (quantidade 1x):")
-    cols_freq = st.columns(2)
-    idx_col = 0
-    for prod_freq, preco_freq in list(st.session_state.historico_frequentes.items())[:8]:
-        with cols_freq[idx_col % 2]:
-            if st.button(f"➕ {prod_freq} (R$ {preco_freq:.2f})", use_container_width=True):
-                subtotal_freq = preco_freq
-                cat_freq = categorizar_produto(prod_freq)
-                st.session_state.carrinho.append({
-                    "nome": prod_freq,
-                    "qtd": 1.0,
-                    "unitario": preco_freq,
-                    "subtotal": subtotal_freq,
-                    "categoria": cat_freq
-                })
-                salvar_dados()
-                st.rerun()
-        idx_col += 1
 
 st.divider()
 
