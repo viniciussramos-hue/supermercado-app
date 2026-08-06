@@ -1,5 +1,6 @@
 import streamlit as st
 import urllib.parse
+import pandas as pd
 
 st.set_page_config(page_title="🛒 Supermercado Rápido", layout="centered")
 
@@ -8,7 +9,6 @@ if 'carrinho' not in st.session_state:
     st.session_state.carrinho = []
 
 if 'historico_frequentes' not in st.session_state:
-    # Memória de itens frequentes salvos automaticamente
     st.session_state.historico_frequentes = {
         "Leite Integral": 4.50,
         "Café 500g": 12.00,
@@ -83,7 +83,6 @@ if btn_enviar and entrada_texto:
         subtotal = qtd_ou_peso * preco_informado
         categoria = categorizar_produto(nome_detectado)
         
-        # Adiciona ao carrinho e atualiza o histórico frequente
         st.session_state.carrinho.append({
             "nome": nome_detectado,
             "qtd": qtd_ou_peso,
@@ -136,7 +135,7 @@ if st.session_state.carrinho:
             st.error(f"⚠️ Atenção! Você passou do orçamento máximo de R$ {orcamento_max:.2f}!")
         else:
             falta = orcamento_max - total_geral
-            st.info(f"💡 Orçamento: R$ {total_geral:.2f} gastos de R$ {orcamento_max:.2f} (Restam R$ {falta:.2f})")
+            st.info(f"💡 Orçamento: R$ {total_geral:.2f} gastos de R$ {orcamento_maxpr := orcamento_max - total_geral} (Restam R$ {falta:.2f})")
 
     st.markdown("---")
 
@@ -151,6 +150,26 @@ if st.session_state.carrinho:
                 
     st.markdown(f"--- \n### 💰 Total Geral: R$ {total_geral:.2f}")
     
+    # --- BOTÃO DE EXPORTAR PARA EXCEL (CSV) ---
+    df_export = pd.DataFrame(st.session_state.carrinho)
+    # Renomeia as colunas para o arquivo ficar limpo e em português
+    df_export = df_export.rename(columns={
+        "categoria": "Categoria",
+        "nome": "Produto",
+        "qtd": "Quantidade",
+        "unitario": "Preço Unitário (R$)",
+        "subtotal": "Subtotal (R$)"
+    })
+    csv_data = df_export.to_csv(index=False).encode('utf-8')
+
+    st.download_button(
+        label="📊 Baixar Planilha (Excel / CSV)",
+        data=csv_data,
+        file_name="lista_supermercado.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
     # --- BOTÃO DE EXPORTAR PARA O WHATSAPP ---
     texto_whatsapp = "🛒 *Minha Lista de Supermercado*\n\n"
     for item in st.session_state.carrinho:
@@ -160,11 +179,11 @@ if st.session_state.carrinho:
     link_whatsapp = f"https://api.whatsapp.com/send?text={urllib.parse.quote(texto_whatsapp)}"
     
     st.markdown(
-        f'<a href="{link_whatsapp}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; font-size:16px; cursor:pointer;">📤 Enviar Lista para o WhatsApp</button></a>',
+        f'<a href="{link_whatsapp}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; font-size:16px; cursor:pointer; margin-top: 5px;">📤 Enviar Lista para o WhatsApp</button></a>',
         unsafe_allow_html=True
     )
     
-    st.write("") # Espaçamento
+    st.write("") 
     if st.button("🗑️ Limpar Carrinho Inteiro", use_container_width=True):
         st.session_state.carrinho = []
         st.rerun()
