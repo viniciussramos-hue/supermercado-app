@@ -23,14 +23,14 @@ mapa_numeros = {
     "quatro": 4, "cinco": 5, "seis": 6, "sete": 7, "oito": 8, "nove": 9, "dez": 10
 }
 
-# Função simples para categorizar o produto por palavras-chave
+# Função de categorização corrigida
 def categorizar_produto(nome):
     nome_lower = nome.lower()
     if any(k in nome_lower for k in ["tomate", "cebola", "batata", "fruta", "banana", "maca", "alho", "cenoura", "alface"]):
         return "🍅 Hortifrúti"
-    elif any(k in nome_lower for k in ["carne", "frango", "carne", "peixe", "linguiça", "bife"]):
+    elif any(k in nome_lower for k in ["carne", "frango", "peixe", "linguiça", "bife"]):
         return "🥩 Açougue"
-    elif any(k in nome_lower for k: ["sabao", "detergente", "papel", "limpeza", "esponja", "alvejante"]):
+    elif any(k in nome_lower for k in ["sabao", "detergente", "papel", "limpeza", "esponja", "alvejante"]):
         return "🧹 Limpeza"
     else:
         return "📦 Mercearia / Outros"
@@ -44,7 +44,6 @@ if btn_enviar and entrada_texto:
     partes = entrada_texto.lower().replace("reais", "").replace("real", "").replace("r$", "").strip().split()
     
     try:
-        # Verifica se o primeiro termo é uma quantidade explícita (número ou extenso)
         if partes and (partes[0] in mapa_numeros or partes[0].replace(',', '.').replace('.', '').isdigit()):
             if partes[0] in mapa_numeros:
                 qtd_ou_peso = float(mapa_numeros[partes[0]])
@@ -59,7 +58,6 @@ if btn_enviar and entrada_texto:
             partes.pop(-1)
             nome_bruto = " ".join(partes).strip()
         else:
-            # Se não digitou quantidade no início, assume 1 por padrão
             qtd_ou_peso = 1.0
             if "e" in partes:
                 partes.remove("e")
@@ -95,11 +93,9 @@ st.subheader("🛍️ Seu Carrinho")
 
 total_geral = 0.0
 if st.session_state.carrinho:
-    # Calcula o total geral primeiro para exibir o status do orçamento
     for item in st.session_state.carrinho:
         total_geral += item['subtotal']
         
-    # Barra e alerta de orçamento
     if orcamento_max > 0:
         progresso = min(total_geral / orcamento_max, 1.0)
         st.progress(progresso)
@@ -111,7 +107,6 @@ if st.session_state.carrinho:
 
     st.markdown("---")
 
-    # Exibição dos itens
     for idx, item in enumerate(st.session_state.carrinho):
         col_item1, col_item2 = st.columns([4, 1])
         with col_item1:
