@@ -17,7 +17,7 @@ if not api_key:
     st.stop()
 
 genai.configure(api_key=api_key)
-model = genai.GenerativeModel('gemini-pro-vision')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 # --- FUNÇÃO DE IA PARA LER O PRODUTO ---
 def analisar_foto_produto(imagem_pil):
