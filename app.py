@@ -3,6 +3,7 @@ import urllib.parse
 import pandas as pd
 import json
 import os
+import io
 
 st.set_page_config(page_title="🛒 Supermercado Rápido", layout="centered")
 
@@ -77,11 +78,23 @@ with st.form("form_adicionar", clear_on_submit=True):
     btn_enviar = st.form_submit_button("➕ Adicionar ao Carrinho", use_container_width=True)
 
 if btn_enviar and entrada_texto:
+    texto_original = entrada_texto
     texto_limpo = entrada_texto.lower()
-    for termo in ["reais", "real", "r$", "o kilo", "o quilo", "quilo", "kilo", "kg", "litro", "l", "unidade", "un"]:
+    
+    # Remove apenas termos isolados para não cortar letras de nomes como "Leite"
+    termos_remover = ["reais", "real", "r$", "o kilo", "o quilo", "quilo", "kilo", "kg", "unidade", "un"]
+    for termo in termos_remover:
         texto_limpo = texto_limpo.replace(termo, "")
         
-    partes = texto_limpo.strip().split()
+    # Tratamento seguro para Litro (apenas se estiver isolado por espaços ou números)
+    palavras_texto = texto_limpo.split()
+    palavras_filtradas = []
+    for p in palavras_texto:
+        if p == "l" or p == "litro" or p == "litros":
+            continue
+        palavras_filtradas.append(p)
+        
+    partes = palavras_filtradas
     
     try:
         numeros_encontrados = []
@@ -95,10 +108,13 @@ if btn_enviar and entrada_texto:
             else:
                 palavras_nome.append(p)
                 
+        # Resgata o nome original capitalizado caso queira, ou usa as palavras limpas
         nome_bruto = " ".join(palavras_nome).strip()
-        nome_detectado = " ".join([w.capitalize() for w in nome_bruto.split()])
-        if not nome_detectado:
+        if not nome_bruto:
+            # Se por acaso o nome ficou vazio, tenta extrair do texto original
             nome_detectado = "Produto"
+        else:
+            nome_detectado = " ".join([w.capitalize() for w in nome_bruto.split()])
             
         if len(numeros_encontrados) >= 2:
             qtd_ou_peso = numeros_encontrados[0]
@@ -161,7 +177,7 @@ if st.session_state.carrinho:
                 
     st.markdown(f"--- \n### 💰 Total Geral: R$ {total_geral:.2f}")
     
-    # --- BOTÃO DE EXPORTAR PARA EXCEL (CSV) ---
+    # --- BOTÃO DE EXPORTAR PARA EXCEL (.XLSX) ---
     df_export = pd.DataFrame(st.session_state.carrinho)
     df_export = df_export.rename(columns={
         "categoria": "Categoria",
@@ -170,19 +186,23 @@ if st.session_state.carrinho:
         "unitario": "Preço Unitário (R$)",
         "subtotal": "Subtotal (R$)"
     })
-    csv_data = df_export.to_csv(index=False).encode('utf-8')
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_export.to_excel(writer, index=False, sheet_name="Lista de Compras")
+    excel_data = output.getvalue()
 
     st.download_button(
-        label="📊 Baixar Planilha (Excel / CSV)",
-        data=csv_data,
-        file_name="lista_supermercado.csv",
-        mime="text/csv",
+        label="📊 Baixar Planilha Excel (.xlsx)",
+        data=excel_data,
+        file_name="lista_supermercado.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
 
     # --- BOTÃO DE EXPORTAR PARA O WHATSAPP ---
     texto_whatsapp = "🛒 *Minha Lista de Supermercado*\n\n"
-    for item in st.session_state.carrinho:
+    for item in st.session_save.carrinho if 'carrinho' in st.session_state else st.session_state.carrinho:
         texto_whatsapp += f"• {item['nome']} ({item['qtd']}x R$ {item['unitario']:.2f}) - R$ {item['subtotal']:.2f}\n"
     texto_whatsapp += f"\n*Total Geral: R$ {total_geral:.2f}*"
     
