@@ -17,7 +17,13 @@ if not api_key:
     st.stop()
 
 genai.configure(api_key=api_key)
-model = genai.GenerativeModel('models/gemini-1.5-flash')
+
+# Inicializa o modelo de forma segura e compatível
+try:
+    model = genai.GenerativeModel('gemini-1.5-flash')
+except Exception:
+    model = genai.GenerativeModel('gemini-1.5-pro')
+
 # --- FUNÇÃO DE IA PARA LER O PRODUTO ---
 def analisar_foto_produto(imagem_pil):
     """Usa IA para extrair o nome do produto da foto."""
@@ -49,7 +55,6 @@ if foto_input:
         img_bytes = foto_input.read()
         img_pil = Image.open(io.BytesIO(img_bytes))
         
-        # Correção aplicada aqui (usando use_container_width)
         st.image(img_pil, caption="Foto capturada", use_container_width=True)
         
         with st.spinner("🧠 IA analisando a foto..."):
