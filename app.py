@@ -1,126 +1,108 @@
 import streamlit as st
-import google.generativeai as genai
-from PIL import Image
-import os
-import io
 
-st.set_page_config(page_title="🛒 Supermercado - IA Vision")
-
-# --- CONFIGURAÇÃO DA IA ---
-if "GOOGLE_API_KEY" in st.secrets:
-    api_key = st.secrets["GOOGLE_API_KEY"]
-else:
-    api_key = os.environ.get("GOOGLE_API_KEY")
-
-if not api_key:
-    st.error("⚠️ Chave da API do Google não encontrada! Configure-a no Streamlit Secrets.")
-    st.stop()
-
-genai.configure(api_key=api_key)
-
-# Inicializa o modelo de forma segura e compatível
-try:
-    model = genai.GenerativeModel('gemini-1.5-flash')
-except Exception:
-    model = genai.GenerativeModel('gemini-1.5-pro')
-
-# --- FUNÇÃO DE IA PARA LER O PRODUTO ---
-def analisar_foto_produto(imagem_pil):
-    """Usa IA para extrair o nome do produto da foto."""
-    prompt = """
-    Analise a imagem fornecida, que é a embalagem de um produto de supermercado.
-    Sua tarefa é identificar SOMENTE o NOME CLARO e a DESCRIÇÃO PRINCIPAL do produto (ex: "Polvilho Azedo 500g", "Leite Integral Italac 1L").
-    Retorne apenas o texto do nome do produto, sem explicações ou aspas.
-    Se não conseguir ler claramente, responda apenas com "Não consegui identificar".
-    """
-    try:
-        response = model.generate_content([prompt, imagem_pil])
-        return response.text.strip()
-    except Exception as e:
-        return f"Erro na IA: {e}"
+st.set_page_config(page_title="🛒 Supermercado Rápido", layout="centered")
 
 # --- ESTADO DA APLICAÇÃO ---
 if 'carrinho' not in st.session_state:
     st.session_state.carrinho = []
 
-# Interface Principal
-st.title("🛒 Supermercado - IA Vision")
+if 'favoritos' not in st.session_state:
+    # Lista inicial de itens comuns para acesso rápido por toque
+    st.session_state.favoritos = [
+        "Leite Integral", "Café 500g", "Arroz 5kg", "Feijão 1kg", 
+        "Açúcar", "Óleo de Soja", "Pão de Forma", "Ovos (Dúzia)", 
+        "Papel Higiênico", "Frango (Kg)", "Carne Bovina (Kg)", "Tomate (Kg)"
+    ]
 
-st.subheader("1. Tire foto para o nome (IA)")
-foto_input = st.camera_input("Apontar para embalagem do produto")
+# Título do Aplicativo
+st.title("🛒 Supermercado Rápido")
 
-nome_ia = ""
-if foto_input:
-    try:
-        img_bytes = foto_input.read()
-        img_pil = Image.open(io.BytesIO(img_bytes))
+# --- ABA 1: ADICIONAR ITENS ---
+st.subheader("1. Adicionar ao Carrinho")
+
+# Escolha do método de adição
+modo_add = st.radio("Escolha como adicionar:", ["⚡ Botões Rápidos (Mais Usados)", "✍️ Digitar ou Ditar (Voz)"], horizontal=True)
+
+nome_produto = ""
+
+if modo_add.startswith("⚡"):
+    st.write("Toque em um produto abaixo para selecionar:")
+    # Cria botões em grade para toque rápido
+    cols = st.columns(2)
+    for idx, fav in enumerate(st.session_state.favoritos):
+        with cols[idx % 2]:
+            if st.button(f"➕ {fav}", use_container_width=True, key=f"fav_{idx}"):
+                st.session_state.selecionado_temp = fav
+
+    # Puxa o produto selecionado nos botões se houver
+    nome_produto = st.session_state.get('selecionado_temp', '')
+    if nome_produto:
+        st.info(f"Produto selecionado: **{nome_produto}**")
+else:
+    # Campo manual ou por voz (o microfone do teclado do celular funciona aqui!)
+    nome_produto = st.text_input("Nome do produto (ou use o microfone do teclado):", value="")
+
+# Formulário para definir tipo, quantidade/peso e preço
+if nome_produto:
+    with st.form("form_detalhes", clear_on_submit=True):
+        st.write(f"**Item:** {nome_produto}")
         
-        st.image(img_pil, caption="Foto capturada", use_container_width=True)
+        tipo_compra = st.radio("Tipo de Medida:", ["Unidade", "Quilo (Kg)"], horizontal=True, key="tipo_medida")
         
-        with st.spinner("🧠 IA analisando a foto..."):
-            nome_ia = analisar_foto_produto(img_pil)
-            
-            if nome_ia.startswith("Erro na IA") or nome_ia == "Não consegui identificar":
-                st.error(f"A IA não conseguiu ler o nome: {nome_ia}")
-                nome_ia = ""
+        col1, col2 = st.columns(2)
+        if tipo_compra == "Unidade":
+            with col1:
+                preco = st.number_input("Preço Unitário (R$):", min_value=0.0, format="%.2f", value=0.0)
+            with col2:
+                qtd = st.number_input("Quantidade:", min_value=1, value=1, step=1)
+            subtotal = preco * qtd
+            detalhe = f"{qtd} un"
+        else:
+            with col1:
+                preco_kg = st.number_input("Preço por Kg (R$):", min_value=0.0, format="%.2f", value=0.0)
+            with col2:
+                peso = st.number_input("Peso (Kg):", min_value=0.001, format="%.3f", value=1.000, step=0.100)
+            subtotal = preco_kg * peso
+            detalhe = f"{peso:.3f} kg"
+
+        btn_confirma = st.form_submit_button("✅ Confirmar e Adicionar", use_container_width=True)
+
+        if btn_confirma:
+            if subtotal > 0:
+                st.session_state.carrinho.append({
+                    "nome": nome_produto,
+                    "detalhe": detalhe,
+                    "subtotal": subtotal
+                })
+                # Limpa a seleção temporária
+                if 'selecionado_temp' in st.session_state:
+                    del st.session_state['selecionado_temp']
+                st.success(f"Adicionado com sucesso!")
+                st.rerun()
             else:
-                st.success(f"IA identificou: **{nome_ia}**")
-                
-    except Exception as e:
-        st.error(f"Erro ao processar a imagem: {e}")
+                st.error("Informe um preço válido maior que zero.")
 
-# Aba 2: Carrinho e Cadastro Manual
 st.divider()
-st.subheader("2. Detalhes do Item e Carrinho")
 
-with st.form("form_item", clear_on_submit=True):
-    col_a, col_b = st.columns(2)
-    with col_a:
-        nome_final = st.text_input("Nome do Produto:", value=nome_ia)
-    with col_b:
-        tipo_compra = st.radio("Tipo:", ["Unidade", "Quilo (Kg)"], horizontal=True)
-        
-    col1, col2 = st.columns(2)
-    if tipo_compra == "Unidade":
-        with col1:
-            preco_unitario = st.number_input("Preço Unitário (R$):", min_value=0.0, format="%.2f", value=0.0)
-        with col2:
-            quantidade = st.number_input("Quantidade:", min_value=1, value=1, step=1)
-        subtotal = preco_unitario * quantidade
-        detalhe_texto = f"{quantidade} un"
-    else:
-        with col1:
-            preco_kg = st.number_input("Preço por Kg (R$):", min_value=0.0, format="%.2f", value=0.0)
-        with col2:
-            peso = st.number_input("Peso (Kg):", min_value=0.001, format="%.3f", value=1.000, step=0.100)
-        subtotal = preco_kg * peso
-        detalhe_texto = f"{peso:.3f} kg"
+# --- ABA 2: CARRINHO E TOTAL ---
+st.subheader("🛍️ Seu Carrinho de Compras")
 
-    btn_adicionar = st.form_submit_button("Adicionar ao Carrinho", use_container_width=True)
-
-if btn_adicionar:
-    if nome_final and subtotal > 0:
-        st.session_state.carrinho.append({
-            "nome": nome_final,
-            "detalhe": detalhe_texto,
-            "subtotal": subtotal
-        })
-        st.success(f"Adicionado: {nome_final} ({detalhe_texto}) - R$ {subtotal:.2f}")
-    else:
-        st.error("Preencha o nome do produto e um preço/peso válido.")
-
-# Exibindo o Carrinho
-st.divider()
-st.subheader("🛍️ Carrinho Atual")
 total_geral = 0.0
 if st.session_state.carrinho:
     for idx, item in enumerate(st.session_state.carrinho):
-        st.write(f"**{idx+1}. {item['nome']}** ({item['detalhe']}) - **R$ {item['subtotal']:.2f}**")
+        col_item1, col_item2 = st.columns([4, 1])
+        with col_item1:
+            st.write(f"**{idx+1}. {item['nome']}** ({item['detalhe']}) — **R$ {item['subtotal']:.2f}**")
+        with col_item2:
+            if st.button("❌", key=f"del_{idx}"):
+                st.session_state.carrinho.pop(idx)
+                st.rerun()
         total_geral += item['subtotal']
-    st.markdown(f"### Total Geral: R$ {total_geral:.2f}")
+        
+    st.markdown(f"--- \n### 💰 Total Geral: R$ {total_geral:.2f}")
+    
+    if st.button("🗑️ Limpar Carrinho Inteiro", use_container_width=True):
+        st.session_state.carrinho = []
+        st.rerun()
 else:
-    st.info("Carrinho vazio.")
-
-if st.button("Limpar Tudo"):
-    st.session_state.carrinho = []
-    st.rerun()
+    st.info("Seu carrinho está vazio. Adicione itens acima!")
